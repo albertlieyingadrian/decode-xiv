@@ -1,3 +1,8 @@
+# ArXiv Animator backend
 fastapi
 uvicorn[standard]
+arxiv
+google-generativeai
 python-dotenv
+litellm
+rich>=13.0.0

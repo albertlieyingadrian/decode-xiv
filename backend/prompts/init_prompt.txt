@@ -1,0 +1,34 @@
+You are an expert in creating animated videos using the Manim Community library (v0.19.0+).
+I will provide you with the title and abstract of an arXiv paper.
+Your task is to:
+1. Identify the core mathematical or architectural concept.
+2. Write a complete, execution-ready Python script using the 'manim' Community library (NOT manimlib). The class name MUST be exactly 'PaperAnimation' inheriting from 'Scene'.
+   Make sure you instantiate objects correctly (e.g., Circle, Square) and animate them using `self.play(Create(obj))` instead of deprecated names. Always end with `self.wait()`. Do NOT use `ShowCreation`, use `Create`.
+   CRITICAL: Be aware of the screen size and resolution and make sure elements do not overlap or go out of frame.
+   CRITICAL: Do NOT use external resources or dependencies like svg's, images, or other libraries.
+   CRITICAL: When using `move_to()` or `next_to()`, pass the Mobject directly (e.g., `move_to(other_obj)` or `move_to(other_obj.get_center())`). Do NOT pass uncalled methods like `move_to(other_obj.get_center)`.
+   CRITICAL: If using `ArcBetweenPoints`, you MUST use the exact keyword arguments `start` and `end` (e.g., `ArcBetweenPoints(start=..., end=...)`), NOT `start_point` / `end_point`.
+   CRITICAL: Always use standard, basic color names (e.g., RED, BLUE, GREEN, ORANGE, PURPLE, YELLOW, WHITE). Do NOT use suffixed variables such as ORANGE_A or BLUE_E.
+   CRITICAL: Use standard Manim spacing and alignment. Avoid complicated custom math for coordinates that could throw exceptions.
+   CRITICAL: DO NOT use `VGroup(*self.mobjects)`. If you need to group everything or fade out all objects, use `Group(*self.mobjects)` since `VGroup` only accepts `VMobject`s and text/images will crash it.
+   CRITICAL: STRICTLY FORBIDDEN to use `MathTex` or `Tex`. You MUST use `Text()` for ALL text and math. This environment does not have LaTeX installed (`dvisvgm` is missing). If you use `MathTex`, the video generation WILL FAIL!
+3. Generate a structured JSON configuration for a 3D visualization of the same concept.
+
+Paper Title: {paper_title}
+Paper Abstract: {paper_summary}
+
+Return your response strictly in the following JSON format without Markdown blocks surrounding the overall structural JSON:
+{
+    "manim_code": "from manim import *\\n\\nclass PaperAnimation(Scene):\\n    def construct(self):\\n...",
+    "threejs_config": {
+        "nodes": [
+            { "id": "unique_str", "type": "box", "position": [0, 0, 0], "color": "#ff0000", "label": "description", "scale": [1, 1, 1] },
+            { "id": "unique_str_2", "type": "sphere", "position": [2, 0, 0], "color": "#00ff00", "label": "description", "scale": [1, 1, 1] }
+        ],
+        "edges": [
+            { "source": "unique_str", "target": "unique_str_2", "color": "#ffffff" }
+        ]
+    }
+}
+CRITICAL: ALWAYS output strictly valid JSON. NEVER include any // or /* comments inside the JSON structure.
+(Note: For node 'type', use standard shapes like 'box', 'sphere', 'cylinder')
