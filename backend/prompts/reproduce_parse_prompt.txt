@@ -1,0 +1,25 @@
+You are an expert ML research paper parser.
+
+Given the following research paper information, extract structured metadata for reproduction.
+
+Paper Title: {paper_title}
+Paper Abstract: {paper_summary}
+
+Extract and return a JSON object with these fields:
+
+{{
+  "title": "paper title",
+  "task_type": "e.g. image classification, text generation, object detection, reinforcement learning, etc.",
+  "key_contributions": ["list of 2-3 main contributions"],
+  "datasets_mentioned": ["list of dataset names mentioned"],
+  "model_names": ["list of model/architecture names mentioned"],
+  "baseline_models": ["list of baseline/comparison models mentioned"],
+  "metrics_mentioned": ["list of evaluation metrics mentioned e.g. accuracy, BLEU, F1"],
+  "key_techniques": ["list of key techniques/methods used"],
+  "domain": "e.g. NLP, computer vision, reinforcement learning, audio, multimodal"
+}}
+
+Rules:
+- Only include information that is clearly stated or strongly implied in the text.
+- If a field cannot be determined, use an empty list [] or "unknown".
+- Return ONLY valid JSON, no markdown formatting, no comments.

@@ -23,6 +23,7 @@ from manim_utils import (
     extract_scene_class_names,
     calculate_scene_success_rate,
 )
+from notebook_utils import generate_colab_notebook, save_notebook
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -303,7 +304,7 @@ def run_manim_workflow(
 ) -> tuple[str, str, WorkflowStats, dict]:
     """
     Run the manim-generator-style flow: initial generation, execute, then review/revision
-    loop on failure. Returns (manim_video_url_path, threejs_config, workflow_stats, usage_tracking_dict).
+    loop on failure. Returns (manim_video_url_path, threejs_config, workflow_stats, usage_tracking_dict, final_manim_code).
     When console is provided, logs match manim-generator (rules, execution status, optional logs panel).
     """
     start_time = time.time()
@@ -353,7 +354,7 @@ def run_manim_workflow(
             paper_summary, paper_title, usage_tracker=usage_tracker, step_name="Initial Code Generation", console=console
         )
     if not manim_code.strip():
-        return "", threejs_config, make_stats(), usage_tracker.get_tracking_data()
+        return "", threejs_config, make_stats(), usage_tracker.get_tracking_data(), ""
 
     report("Rendering 2D Manim MP4 (This process takes ~1 minute)...")
     if console:
@@ -586,6 +587,7 @@ def run_manim_workflow(
         threejs_config,
         make_stats(final_mp4_path if working_code else "", working=working_code is not None),
         usage_tracker.get_tracking_data(),
+        working_code or "",
     )
 
 
@@ -755,7 +757,7 @@ async def process_paper(request: PaperRequest):
         # record=True so we can export plain text to a .txt file next to the video
         console = Console(force_terminal=True, record=True)
 
-        def workflow_with_progress() -> tuple[str, str, WorkflowStats, dict]:
+        def workflow_with_progress() -> tuple[str, str, WorkflowStats, dict, str]:
             return run_manim_workflow(
                 paper.summary,
                 paper.title,
@@ -765,9 +767,25 @@ async def process_paper(request: PaperRequest):
                 console=console,
             )
 
-        future = loop.run_in_executor(None, workflow_with_progress)
+        # Run Manim workflow and reproduction pipeline in parallel
+        from reproduce_pipeline import run_reproduce_pipeline
 
-        while not future.done():
+        reproduce_console = Console(force_terminal=True, record=True)
+
+        def reproduce_with_progress() -> tuple[str, dict]:
+            return run_reproduce_pipeline(
+                paper.title,
+                paper.summary,
+                arxiv_id,
+                progress_callback=lambda msg: progress_queue.put(f"[Reproduce] {msg}"),
+                console=reproduce_console,
+            )
+
+        manim_future = loop.run_in_executor(None, workflow_with_progress)
+        reproduce_future = loop.run_in_executor(None, reproduce_with_progress)
+
+        # Stream progress from both futures until both complete
+        while not manim_future.done() or not reproduce_future.done():
             try:
                 while True:
                     msg = progress_queue.get_nowait()
@@ -783,7 +801,16 @@ async def process_paper(request: PaperRequest):
             except Empty:
                 break
 
-        video_url_path, threejs_config, workflow_stats, usage_data = future.result()
+        video_url_path, threejs_config, workflow_stats, usage_data, final_manim_code = manim_future.result()
+
+        # Get reproduction result (don't crash if it failed)
+        reproduce_notebook_url = ""
+        try:
+            reproduce_notebook_path, reproduce_usage = reproduce_future.result()
+            if reproduce_notebook_path:
+                reproduce_notebook_url = f"http://localhost:8000{reproduce_notebook_path}"
+        except Exception as e:
+            print(f"Reproduction pipeline failed (non-fatal): {e}")
 
         # Workflow summary and token usage (same as manim-generator; console already created above)
         display_workflow_summary(console, workflow_stats)
@@ -802,6 +829,18 @@ async def process_paper(request: PaperRequest):
         except Exception as e:
             print(f"Failed to write log file {log_path}: {e}")
 
+        # Generate Colab notebook from working Manim code
+        notebook_url = ""
+        if final_manim_code.strip():
+            try:
+                notebook = generate_colab_notebook(final_manim_code, paper.title, paper.summary)
+                notebook_filename = f"animation_{safe_id}.ipynb"
+                notebook_path = os.path.join(video_dir, notebook_filename)
+                save_notebook(notebook, notebook_path)
+                notebook_url = f"http://localhost:8000/static/videos/{notebook_filename}"
+            except Exception as e:
+                print(f"Failed to generate Colab notebook: {e}")
+
         yield json.dumps({"status": "step", "message": "Finalizing payload..."}) + "\n"
 
         yield json.dumps({
@@ -812,10 +851,285 @@ async def process_paper(request: PaperRequest):
                 "summary": paper.summary,
                 "manim_video_url": f"http://localhost:8000{video_url_path}" if video_url_path else "",
                 "three_js_config": threejs_config,
+                "notebook_url": notebook_url,
+                "reproduce_notebook_url": reproduce_notebook_url,
             },
         }) + "\n"
 
     return StreamingResponse(generation_routine(), media_type="application/x-ndjson")
+
+@app.post("/api/reproduce-paper")
+async def reproduce_paper(request: PaperRequest):
+    """Generate a runnable Colab notebook that reproduces the paper's core experiment."""
+    import asyncio
+    from reproduce_pipeline import run_reproduce_pipeline
+
+    async def generation_routine():
+        yield json.dumps({"status": "step", "message": "Fetching paper metadata from ArXiv..."}) + "\n"
+
+        arxiv_id = extract_arxiv_id(request.url)
+        if not arxiv_id:
+            yield json.dumps({"status": "error", "message": "Invalid arXiv URL or ID"}) + "\n"
+            return
+
+        loop = asyncio.get_event_loop()
+        paper = await loop.run_in_executor(None, fetch_arxiv_details, arxiv_id)
+        if not paper:
+            yield json.dumps({"status": "error", "message": "Paper not found on arXiv"}) + "\n"
+            return
+
+        yield json.dumps({"status": "step", "message": "Starting reproduction pipeline..."}) + "\n"
+
+        progress_queue: Queue[str] = Queue()
+        console = Console(force_terminal=True, record=True)
+
+        def pipeline_with_progress() -> tuple[str, dict]:
+            return run_reproduce_pipeline(
+                paper.title,
+                paper.summary,
+                arxiv_id,
+                progress_callback=lambda msg: progress_queue.put(msg),
+                console=console,
+            )
+
+        future = loop.run_in_executor(None, pipeline_with_progress)
+
+        while not future.done():
+            try:
+                while True:
+                    msg = progress_queue.get_nowait()
+                    yield json.dumps({"status": "step", "message": msg}) + "\n"
+            except Empty:
+                pass
+            await asyncio.sleep(0.05)
+
+        while not progress_queue.empty():
+            try:
+                msg = progress_queue.get_nowait()
+                yield json.dumps({"status": "step", "message": msg}) + "\n"
+            except Empty:
+                break
+
+        try:
+            notebook_url_path, usage_data = future.result()
+        except Exception as e:
+            yield json.dumps({"status": "error", "message": f"Pipeline failed: {e}"}) + "\n"
+            return
+
+        yield json.dumps({"status": "step", "message": "Finalizing notebook..."}) + "\n"
+
+        yield json.dumps({
+            "status": "complete",
+            "result": {
+                "title": paper.title,
+                "authors": [auth.name for auth in paper.authors],
+                "summary": paper.summary,
+                "reproduce_notebook_url": f"http://localhost:8000{notebook_url_path}" if notebook_url_path else "",
+            },
+        }) + "\n"
+
+    return StreamingResponse(generation_routine(), media_type="application/x-ndjson")
+
+
+@app.post("/api/process-paper-sections")
+async def process_paper_sections(request: PaperRequest):
+    """Generate section-by-section animations with PDF page mapping."""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    from pdf_utils import download_arxiv_pdf, extract_text_by_page, identify_sections
+
+    async def generation_routine():
+        yield json.dumps({"status": "step", "message": "Fetching paper metadata from ArXiv..."}) + "\n"
+
+        arxiv_id = extract_arxiv_id(request.url)
+        if not arxiv_id:
+            yield json.dumps({"status": "error", "message": "Invalid arXiv URL or ID"}) + "\n"
+            return
+
+        loop = asyncio.get_event_loop()
+        paper = await loop.run_in_executor(None, fetch_arxiv_details, arxiv_id)
+        if not paper:
+            yield json.dumps({"status": "error", "message": "Paper not found on arXiv"}) + "\n"
+            return
+
+        yield json.dumps({"status": "step", "message": "Downloading paper PDF..."}) + "\n"
+
+        safe_id = arxiv_id.replace("/", "_").replace(":", "_")
+        pdf_dir = os.path.join(os.getcwd(), "static", "pdfs")
+        os.makedirs(pdf_dir, exist_ok=True)
+
+        try:
+            pdf_path = await loop.run_in_executor(None, download_arxiv_pdf, arxiv_id, pdf_dir)
+        except Exception as e:
+            yield json.dumps({"status": "error", "message": f"Failed to download PDF: {e}"}) + "\n"
+            return
+
+        pdf_url = f"http://localhost:8000/static/pdfs/{os.path.basename(pdf_path)}"
+
+        yield json.dumps({"status": "step", "message": "Extracting text from PDF..."}) + "\n"
+        pages_text = await loop.run_in_executor(None, extract_text_by_page, pdf_path)
+
+        yield json.dumps({"status": "step", "message": "Identifying paper sections with AI..."}) + "\n"
+        usage_tracker = TokenUsageTracker()
+
+        try:
+            sections = await loop.run_in_executor(
+                None, identify_sections, pages_text, paper.title, usage_tracker
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
+                yield json.dumps({"status": "error", "message": "Gemini API rate limit reached. Please wait a minute and try again, or upgrade your API key."}) + "\n"
+            else:
+                yield json.dumps({"status": "error", "message": f"Failed to identify sections: {error_msg}"}) + "\n"
+            return
+
+        yield json.dumps({"status": "step", "message": f"Found {len(sections)} sections. Generating animations..."}) + "\n"
+
+        # Generate animations for each section sequentially to avoid rate limits
+        progress_queue: Queue[str] = Queue()
+        video_dir = os.path.join(os.getcwd(), "static", "videos")
+        os.makedirs(video_dir, exist_ok=True)
+
+        def generate_section_animation(section: dict) -> dict:
+            """Generate a Manim animation for a single section."""
+            section_id = section.get("id", "unknown")
+            section_title = section.get("title", section_id)
+            section_text = section.get("text", "")
+            scene_class = section_id.replace("_", " ").title().replace(" ", "") + "Animation"
+            output_filename = f"section_{safe_id}_{section_id}.mp4"
+
+            progress_queue.put(f"Generating animation for: {section_title}")
+
+            try:
+                prompt = format_prompt("section_animation_prompt", {
+                    "paper_title": paper.title,
+                    "section_title": section_title,
+                    "section_text": section_text,
+                    "scene_class_name": scene_class,
+                })
+
+                model = genai.GenerativeModel(GEMINI_MODEL_NAME)
+                response = model.generate_content(prompt, request_options={"timeout": 120})
+                if getattr(response, "usage_metadata", None):
+                    usage_tracker.add_step(
+                        f"Animation: {section_title}", GEMINI_MODEL_NAME, extract_gemini_usage(response)
+                    )
+                raw_code = response.text or ""
+                code = parse_code_block(raw_code)
+
+                if not code.strip():
+                    progress_queue.put(f"Empty code for: {section_title}")
+                    return {**section, "video_url": ""}
+
+                # Render the animation
+                output_path = os.path.join(video_dir, output_filename)
+                success, logs = run_manim_capture_logs(
+                    code, scene_name=scene_class, final_mp4_path=output_path,
+                    timeout_seconds=MANIM_SCENE_TIMEOUT,
+                )
+
+                if success:
+                    progress_queue.put(f"Rendered: {section_title}")
+                    return {**section, "video_url": f"http://localhost:8000/static/videos/{output_filename}"}
+
+                # One retry with error feedback
+                progress_queue.put(f"Retrying: {section_title}")
+                error_snippet = logs[-500:] if logs else "Unknown render error"
+                retry_prompt = format_prompt("section_animation_prompt", {
+                    "paper_title": paper.title,
+                    "section_title": section_title,
+                    "section_text": section_text + f"\n\nPREVIOUS ATTEMPT FAILED WITH ERROR:\n{error_snippet}\nFix these issues.",
+                    "scene_class_name": scene_class,
+                })
+                response = model.generate_content(retry_prompt, request_options={"timeout": 120})
+                if getattr(response, "usage_metadata", None):
+                    usage_tracker.add_step(
+                        f"Retry: {section_title}", GEMINI_MODEL_NAME, extract_gemini_usage(response)
+                    )
+                code = parse_code_block(response.text or "")
+                if code.strip():
+                    success, logs = run_manim_capture_logs(
+                        code, scene_name=scene_class, final_mp4_path=output_path,
+                        timeout_seconds=MANIM_SCENE_TIMEOUT,
+                    )
+                    if success:
+                        progress_queue.put(f"Rendered (retry): {section_title}")
+                        return {**section, "video_url": f"http://localhost:8000/static/videos/{output_filename}"}
+
+                progress_queue.put(f"Failed: {section_title}")
+                return {**section, "video_url": ""}
+
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "quota" in error_msg.lower():
+                    progress_queue.put(f"Rate limited, skipping: {section_title}")
+                else:
+                    progress_queue.put(f"Error: {section_title}: {error_msg[:100]}")
+                return {**section, "video_url": ""}
+
+        def run_all_sections():
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            results = []
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(generate_section_animation, s): s for s in sections}
+                for future in as_completed(futures):
+                    results.append(future.result())
+            results.sort(key=lambda x: x.get("page_start", 0))
+            return results
+
+        section_future = loop.run_in_executor(None, run_all_sections)
+
+        # Stream progress while sections are being generated
+        while not section_future.done():
+            try:
+                while True:
+                    msg = progress_queue.get_nowait()
+                    yield json.dumps({"status": "step", "message": msg}) + "\n"
+            except Empty:
+                pass
+            await asyncio.sleep(0.05)
+
+        # Drain remaining progress messages
+        while not progress_queue.empty():
+            try:
+                msg = progress_queue.get_nowait()
+                yield json.dumps({"status": "step", "message": msg}) + "\n"
+            except Empty:
+                break
+
+        try:
+            section_results = section_future.result()
+        except Exception as e:
+            yield json.dumps({"status": "error", "message": f"Animation generation failed: {e}"}) + "\n"
+            return
+
+        yield json.dumps({"status": "step", "message": "Finalizing..."}) + "\n"
+
+        yield json.dumps({
+            "status": "complete",
+            "result": {
+                "title": paper.title,
+                "authors": [auth.name for auth in paper.authors],
+                "summary": paper.summary,
+                "pdf_url": pdf_url,
+                "total_pages": len(pages_text),
+                "sections": [
+                    {
+                        "id": s.get("id", ""),
+                        "title": s.get("title", ""),
+                        "text": s.get("text", ""),
+                        "video_url": s.get("video_url", ""),
+                        "page_start": s.get("page_start", 1),
+                        "page_end": s.get("page_end", 1),
+                    }
+                    for s in section_results
+                ],
+            },
+        }) + "\n"
+
+    return StreamingResponse(generation_routine(), media_type="application/x-ndjson")
+
 
 @app.get("/health")
 def health_check():

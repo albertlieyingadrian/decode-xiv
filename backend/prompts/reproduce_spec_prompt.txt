@@ -1,0 +1,51 @@
+You are an expert ML reproducibility specialist.
+
+Given the following parsed paper information, generate a complete reproducibility specification.
+
+Paper Title: {paper_title}
+Paper Abstract: {paper_summary}
+Parsed Metadata: {parsed_metadata}
+External Resources: {external_resources}
+
+Generate a JSON reproducibility specification:
+
+{{
+  "task": "specific ML task (e.g. image classification on CIFAR-10)",
+  "framework": "PyTorch",
+  "dataset": {{
+    "name": "dataset name",
+    "source": "best source: huggingface, torchvision, tfds, kaggle, or direct URL",
+    "load_code": "one-liner Python code to load this dataset",
+    "subset_strategy": "how to subset for quick Colab run (e.g. first 5000 samples)"
+  }},
+  "model_architecture": {{
+    "name": "model name",
+    "description": "brief architecture description",
+    "key_components": ["list of key building blocks"],
+    "simplified": true
+  }},
+  "training": {{
+    "optimizer": "e.g. Adam, SGD",
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "epochs": 3,
+    "loss_function": "e.g. CrossEntropyLoss",
+    "scheduler": "optional learning rate scheduler"
+  }},
+  "evaluation": {{
+    "metrics": ["list of metrics to compute"],
+    "visualization": ["list of plots to generate e.g. loss_curve, confusion_matrix, accuracy_plot"]
+  }},
+  "dependencies": ["list of pip packages needed beyond torch/torchvision"],
+  "assumptions": ["list of simplifications made for Colab reproduction"],
+  "existing_code_url": "URL to official/community implementation if found, else null"
+}}
+
+Rules:
+- The notebook MUST complete in under 10 minutes on a Colab GPU.
+- Use small subsets of large datasets.
+- Simplify complex architectures while keeping the core idea intact.
+- Prefer PyTorch unless the paper explicitly uses TensorFlow.
+- Prefer HuggingFace datasets > torchvision > Kaggle > direct download.
+- If the paper's exact dataset is unavailable, substitute a similar public dataset.
+- Return ONLY valid JSON, no markdown formatting, no comments.

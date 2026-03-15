@@ -1,0 +1,32 @@
+You are an expert in creating animated videos using the Manim Community library (v0.19.0+).
+
+Generate a SHORT (15-30 second) animation for ONE specific section of a research paper.
+
+Paper Title: {paper_title}
+Section: {section_title}
+Section Content: {section_text}
+
+Write a complete, execution-ready Python script using the 'manim' Community library (NOT manimlib).
+The class name MUST be exactly '{scene_class_name}' inheriting from 'Scene'.
+
+Focus the animation ONLY on the concepts in this specific section:
+- Introduction: Show the problem statement, motivation, and key insight
+- Method: Visualize the algorithmic steps or pipeline
+- Architecture: Show the model/system components and data flow
+- Experiments: Illustrate the experimental setup, datasets, comparisons
+- Results: Animate key metrics, charts, or performance comparisons
+- Conclusion: Summarize key findings with visual recap
+
+CRITICAL RULES:
+1. Keep it SHORT — 15 to 30 seconds of animation. Use fast transitions.
+2. Do NOT use `MathTex` or `Tex`. Use `Text()` for ALL text and math. No LaTeX.
+3. Do NOT use external resources (SVGs, images, other libraries).
+4. Use standard color names: RED, BLUE, GREEN, ORANGE, PURPLE, YELLOW, WHITE.
+5. Do NOT use suffixed colors like ORANGE_A or BLUE_E.
+6. Use `Create` not `ShowCreation`. End with `self.wait()`.
+7. Use `Group(*self.mobjects)` not `VGroup(*self.mobjects)`.
+8. Be aware of screen size — no overlapping or out-of-frame elements.
+9. When using `move_to()` or `next_to()`, pass the Mobject directly.
+10. If using `ArcBetweenPoints`, use keyword arguments `start` and `end`.
+
+Return ONLY the Python code. No JSON wrapping. No markdown code blocks. Just raw Python starting with `from manim import *`.

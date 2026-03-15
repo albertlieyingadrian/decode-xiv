@@ -1,0 +1,57 @@
+You are an expert ML engineer generating a complete, runnable Google Colab notebook.
+
+Your task is to generate ALL notebook cells with real, executable Python code that reproduces the core experiment from the paper below.
+
+Paper Title: {paper_title}
+Paper Abstract: {paper_summary}
+Reproducibility Spec: {repro_spec}
+Notebook Plan: {notebook_plan}
+External Resources: {external_resources}
+
+Generate a JSON array of notebook cells. Each cell must have:
+- "cell_type": "markdown" or "code"
+- "source": the actual content (complete code or markdown text)
+
+CRITICAL RULES FOR CODE GENERATION:
+
+1. EVERY code cell must be COMPLETE and RUNNABLE. No pseudocode, no placeholders, no "TODO" comments, no "...".
+2. The first code cell MUST install all dependencies: !pip install -q torch torchvision [other packages]
+3. Include GPU setup: device = "cuda" if torch.cuda.is_available() else "cpu"
+4. Set random seeds for reproducibility: torch.manual_seed(42)
+5. Use REAL dataset loading code that works in Colab without authentication.
+6. The model must be a SIMPLIFIED but FAITHFUL version of the paper's architecture.
+7. Training must complete in UNDER 10 MINUTES on Colab GPU.
+8. Use subset of data if needed: dataset = Subset(dataset, range(5000))
+9. Include progress bars: from tqdm import tqdm
+10. The evaluation cell must print concrete metrics (accuracy, loss, etc.).
+11. Include at least one matplotlib visualization (training loss curve minimum).
+12. The final markdown cell must document all assumptions and simplifications.
+
+DATASET LOADING PRIORITY:
+1. HuggingFace: from datasets import load_dataset; ds = load_dataset("name")
+2. torchvision: torchvision.datasets.CIFAR10(root="./data", download=True)
+3. Direct download with !wget or !curl
+4. Synthetic/toy data as LAST RESORT (clearly document this)
+
+CODE QUALITY:
+- Clean, well-commented code
+- Proper error handling for dataset downloads
+- Print statements showing progress
+- Type hints where helpful
+- No deprecated APIs
+
+TRAINING LOOP MUST INCLUDE:
+- Epoch progress tracking
+- Training loss logging
+- Validation accuracy per epoch
+- Best model checkpoint saving
+
+OUTPUT FORMAT:
+Return a JSON array:
+[
+  {{"cell_type": "markdown", "source": "# Title\\n\\nDescription..."}},
+  {{"cell_type": "code", "source": "!pip install -q torch torchvision\\nimport torch..."}},
+  ...
+]
+
+Return ONLY valid JSON. No markdown wrapping. No ```json blocks. No comments outside strings.

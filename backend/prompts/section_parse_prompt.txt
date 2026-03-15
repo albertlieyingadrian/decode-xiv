@@ -1,0 +1,37 @@
+You are an expert at analyzing academic papers. Given the full text of a paper with page markers, identify and extract the major sections.
+
+Paper Title: {paper_title}
+
+Paper Text (with page markers):
+{paper_text}
+
+Identify the major sections of this paper. Map each section to one of these canonical IDs:
+- "introduction"
+- "related_work"
+- "method"
+- "architecture"
+- "experiments"
+- "results"
+- "conclusion"
+
+If the paper uses different section names (e.g., "Our Framework" instead of "Method"), map them to the closest canonical ID. If a paper combines sections (e.g., "Experiments and Results"), use the primary canonical ID. Skip sections like "Abstract", "References", or "Appendix".
+
+Return a JSON array. Each element must have:
+- "id": the canonical section ID from the list above
+- "title": the actual section title as written in the paper
+- "text": a concise summary (3-5 sentences) of that section's content
+- "page_start": the page number where this section begins
+- "page_end": the page number where this section ends
+
+Rules:
+- Return between 3 and 7 sections
+- Sections must be ordered by page number
+- page_start and page_end must be integers
+- Do NOT include Abstract or References as sections
+- Return ONLY valid JSON array, no markdown formatting
+
+Example output:
+[
+  {{"id": "introduction", "title": "1. Introduction", "text": "The paper introduces...", "page_start": 1, "page_end": 2}},
+  {{"id": "method", "title": "3. Proposed Method", "text": "The authors propose...", "page_start": 3, "page_end": 5}}
+]
