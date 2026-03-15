@@ -6,3 +6,4 @@ google-generativeai
 python-dotenv
 litellm
 rich>=13.0.0
+pymupdf
