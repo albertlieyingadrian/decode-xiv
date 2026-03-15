@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, PlayCircle, Box, Download, ExternalLink } from "lucide-react";
+import { Search, PlayCircle, Box, Download, ExternalLink, FlaskConical } from "lucide-react";
 import ThreeScene from "@/components/ThreeScene";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { uploadNotebookAndOpenColab } from "@/lib/google-drive";
@@ -16,7 +16,7 @@ export default function Home() {
   const [loadingStep, setLoadingStep] = useState<string>("Connecting to server...");
   const [result, setResult] = useState<Record<string, any> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [colabUploading, setColabUploading] = useState(false);
+  const [reproduceColabUploading, setReproduceColabUploading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,10 +93,10 @@ export default function Home() {
         className="text-center max-w-3xl mb-12"
       >
         <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 bg-gradient-to-br from-white to-neutral-500 bg-clip-text text-transparent">
-          Unpack Research with Animation
+          Visualize, Reproduce, Understand
         </h1>
         <p className="text-lg text-neutral-400 leading-relaxed max-w-2xl mx-auto">
-          Paste an arXiv URL below. We use AI to extract the core concepts and automatically generate beautiful 2D Manim videos and interactive 3D visualizations.
+          Paste an arXiv URL below. We generate animated explanations, interactive 3D visualizations, and a runnable Colab notebook to reproduce the paper&apos;s core experiment — all in one click.
         </p>
       </motion.div>
 
@@ -202,62 +202,6 @@ export default function Home() {
                       </div>
                    )}
                 </div>
-                {result.notebook_url && (
-                  <div className="flex items-center gap-3 mt-4">
-                    <button
-                      onClick={async () => {
-                        const res = await fetch(result.notebook_url);
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `${result.title?.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 60) || "notebook"}.ipynb`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                      className="flex items-center gap-2 bg-neutral-800 text-neutral-200 px-4 py-2 rounded-full text-sm font-medium hover:bg-neutral-700 transition-colors border border-neutral-700"
-                    >
-                      <Download size={16} />
-                      Download Notebook
-                    </button>
-                    <button
-                      disabled={colabUploading}
-                      onClick={async () => {
-                        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-                        if (!clientId) {
-                          alert("Google OAuth Client ID not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID in frontend/.env.local");
-                          return;
-                        }
-                        setColabUploading(true);
-                        try {
-                          await uploadNotebookAndOpenColab(
-                            result.notebook_url,
-                            `${result.title?.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 60) || "visual_arxiv"}.ipynb`,
-                            clientId
-                          );
-                        } catch (err) {
-                          console.error("Colab upload failed:", err);
-                          alert(err instanceof Error ? err.message : "Failed to open in Colab");
-                        } finally {
-                          setColabUploading(false);
-                        }
-                      }}
-                      className="flex items-center gap-2 bg-[#F9AB00] text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-[#e09e00] transition-colors disabled:opacity-60"
-                    >
-                      {colabUploading ? (
-                        <>
-                          <div className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <ExternalLink size={16} />
-                          Open in Colab
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
               </div>
 
                {/* Three.js Fallback/Placeholder (We'd embed canvas here normally) */}
@@ -272,6 +216,83 @@ export default function Home() {
               </div>
 
             </div>
+
+            {/* Reproduce Experiment — full width below the grid */}
+            {result.reproduce_notebook_url && (
+              <div className="lg:col-span-2">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 hover:border-neutral-700 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FlaskConical className="text-emerald-400" size={24} />
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Reproduce Experiment</h3>
+                        <p className="text-neutral-400 text-sm">A runnable Colab notebook that reproduces the paper&apos;s core experiment</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={async () => {
+                          const nbUrl = result.reproduce_notebook_url.startsWith("http")
+                            ? result.reproduce_notebook_url
+                            : `http://localhost:8000${result.reproduce_notebook_url}`;
+                          const res = await fetch(nbUrl);
+                          const blob = await res.blob();
+                          const blobUrl = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = blobUrl;
+                          a.download = `experiment_${result?.title?.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").slice(0, 50) || "paper"}.ipynb`;
+                          a.click();
+                          URL.revokeObjectURL(blobUrl);
+                        }}
+                        className="flex items-center gap-2 bg-neutral-800 text-neutral-200 px-4 py-2 rounded-full text-sm font-medium hover:bg-neutral-700 transition-colors border border-neutral-700"
+                      >
+                        <Download size={16} />
+                        Download Notebook
+                      </button>
+                      <button
+                        disabled={reproduceColabUploading}
+                        onClick={async () => {
+                          const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+                          if (!clientId) {
+                            alert("Google OAuth Client ID not configured.");
+                            return;
+                          }
+                          setReproduceColabUploading(true);
+                          try {
+                            const nbUrl = result.reproduce_notebook_url.startsWith("http")
+                              ? result.reproduce_notebook_url
+                              : `http://localhost:8000${result.reproduce_notebook_url}`;
+                            await uploadNotebookAndOpenColab(
+                              nbUrl,
+                              `experiment_${result?.title?.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").slice(0, 50) || "paper"}.ipynb`,
+                              clientId
+                            );
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : "Failed to open in Colab");
+                          } finally {
+                            setReproduceColabUploading(false);
+                          }
+                        }}
+                        className="flex items-center gap-2 bg-[#F9AB00] text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-[#e09e00] transition-colors disabled:opacity-60"
+                      >
+                        {reproduceColabUploading ? (
+                          <>
+                            <div className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink size={16} />
+                            Open in Colab
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </motion.div>
         )}
       </AnimatePresence>
