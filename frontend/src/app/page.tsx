@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, PlayCircle, Box } from "lucide-react";
+import { Search, PlayCircle, Box, Download, ExternalLink } from "lucide-react";
 import ThreeScene from "@/components/ThreeScene";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import { uploadNotebookAndOpenColab } from "@/lib/google-drive";
 
 // Emil Kowalski easing curves
 const easeOutQuint = [0.23, 1, 0.32, 1] as const;
@@ -15,6 +16,7 @@ export default function Home() {
   const [loadingStep, setLoadingStep] = useState<string>("Connecting to server...");
   const [result, setResult] = useState<Record<string, any> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [colabUploading, setColabUploading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,6 +202,62 @@ export default function Home() {
                       </div>
                    )}
                 </div>
+                {result.notebook_url && (
+                  <div className="flex items-center gap-3 mt-4">
+                    <button
+                      onClick={async () => {
+                        const res = await fetch(result.notebook_url);
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${result.title?.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 60) || "notebook"}.ipynb`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-2 bg-neutral-800 text-neutral-200 px-4 py-2 rounded-full text-sm font-medium hover:bg-neutral-700 transition-colors border border-neutral-700"
+                    >
+                      <Download size={16} />
+                      Download Notebook
+                    </button>
+                    <button
+                      disabled={colabUploading}
+                      onClick={async () => {
+                        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+                        if (!clientId) {
+                          alert("Google OAuth Client ID not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID in frontend/.env.local");
+                          return;
+                        }
+                        setColabUploading(true);
+                        try {
+                          await uploadNotebookAndOpenColab(
+                            result.notebook_url,
+                            `${result.title?.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 60) || "visual_arxiv"}.ipynb`,
+                            clientId
+                          );
+                        } catch (err) {
+                          console.error("Colab upload failed:", err);
+                          alert(err instanceof Error ? err.message : "Failed to open in Colab");
+                        } finally {
+                          setColabUploading(false);
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-[#F9AB00] text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-[#e09e00] transition-colors disabled:opacity-60"
+                    >
+                      {colabUploading ? (
+                        <>
+                          <div className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink size={16} />
+                          Open in Colab
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
 
                {/* Three.js Fallback/Placeholder (We'd embed canvas here normally) */}
