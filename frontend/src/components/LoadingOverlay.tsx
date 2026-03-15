@@ -31,7 +31,7 @@ function DataCore() {
         {/* Central Hub */}
         <group ref={coreRef}>
             <Icosahedron args={[0.8, 0]} position={[0, 0, 0]}>
-            <meshStandardMaterial 
+            <meshStandardMaterial
                 color="#0ea5e9"
                 wireframe={false}
                 roughness={0.2}
@@ -49,7 +49,7 @@ function DataCore() {
               />
             </Sphere>
         </group>
-        
+
         {/* Orbiting Data Nodes */}
         <group ref={outerRingRef}>
            {[0, 1, 2].map((i) => {
@@ -57,14 +57,14 @@ function DataCore() {
                const radius = 1.6;
                const x = Math.cos(angle) * radius;
                const z = Math.sin(angle) * radius;
-               
+
                return (
                    <group key={i}>
-                       <Line 
-                          points={[[0, 0, 0], [x, 0, z]]} 
-                          color="#38bdf8" 
-                          opacity={0.3} 
-                          transparent 
+                       <Line
+                          points={[[0, 0, 0], [x, 0, z]]}
+                          color="#38bdf8"
+                          opacity={0.3}
+                          transparent
                           lineWidth={1}
                        />
                        <Sphere args={[0.15, 16, 16]} position={[x, 0, z]}>
@@ -79,20 +79,48 @@ function DataCore() {
   );
 }
 
-export default function LoadingOverlay({ 
-    activeStep
-}: { 
-    activeStep: string
-}) {
-  const steps = [
-    { label: "Fetching paper metadata from ArXiv...", id: "fetch" },
-    { label: "Summarizing & parsing core concepts with AI...", id: "ai" },
-    { label: "Generating Python Manim script and 3D schema...", id: "script" },
-    { label: "Rendering 2D Manim MP4 (This process takes ~1 minute)...", id: "render" }
-  ];
+const QUICK_STEPS = [
+  { label: "Fetching paper metadata from ArXiv...", id: "fetch" },
+  { label: "Summarizing & parsing core concepts with AI...", id: "ai" },
+  { label: "Generating Python Manim script and 3D schema...", id: "script" },
+  { label: "Rendering 2D Manim MP4 (This process takes ~1 minute)...", id: "render" },
+];
 
-  const currentIndex = steps.findIndex(s => activeStep === s.label) || 0;
-  const activeIndex = currentIndex === -1 ? 0 : currentIndex;
+const DEEP_STEPS = [
+  { label: "Fetching paper metadata from ArXiv...", id: "fetch" },
+  { label: "Downloading paper PDF...", id: "pdf" },
+  { label: "Extracting text from PDF...", id: "extract" },
+  { label: "Identifying paper sections with AI...", id: "sections" },
+  { label: "Generating section animations...", id: "animate" },
+];
+
+export default function LoadingOverlay({
+    activeStep,
+    mode = "quick",
+}: {
+    activeStep: string;
+    mode?: "quick" | "deep";
+}) {
+  const steps = mode === "deep" ? DEEP_STEPS : QUICK_STEPS;
+
+  // Find current step index by checking if activeStep contains the step label text
+  // This is fuzzy because backend messages may differ slightly
+  let activeIndex = 0;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (activeStep.toLowerCase().includes(steps[i].label.split("...")[0].toLowerCase().slice(0, 20))) {
+      activeIndex = i;
+      break;
+    }
+  }
+
+  // For deep dive: if the active step mentions "Generating animation" or "Rendered" or "Render failed",
+  // that maps to the last step (animate)
+  if (mode === "deep") {
+    const lower = activeStep.toLowerCase();
+    if (lower.includes("generating animation") || lower.includes("rendered") || lower.includes("render failed") || lower.includes("found")) {
+      activeIndex = steps.length - 1;
+    }
+  }
 
   return (
     <motion.div
@@ -120,16 +148,20 @@ export default function LoadingOverlay({
 
         {/* Content Area */}
         <div className="px-8 pb-10 pt-2 w-full flex flex-col items-center text-center">
-            <h2 className="text-2xl font-bold text-neutral-900 mb-2">Analyzing your paper...</h2>
-            <p className="text-neutral-500 text-sm mb-8">This may take up to a minute</p>
+            <h2 className="text-2xl font-bold text-neutral-900 mb-2">
+              {mode === "deep" ? "Deep diving into your paper..." : "Analyzing your paper..."}
+            </h2>
+            <p className="text-neutral-500 text-sm mb-8">
+              {mode === "deep" ? "Extracting sections and generating per-section animations" : "This may take up to a minute"}
+            </p>
 
             <div className="w-full flex flex-col space-y-3">
                 {steps.map((step, idx) => {
                     const isPast = idx < activeIndex;
-                    const isCurrent = idx === activeIndex && activeStep === step.label;
-                    
+                    const isCurrent = idx === activeIndex;
+
                     return (
-                        <motion.div 
+                        <motion.div
                             key={step.id}
                             className={`flex items-center space-x-4 p-3 rounded-xl transition-all duration-300 ${isCurrent ? 'bg-teal-50 border border-teal-200 shadow-sm' : isPast ? 'bg-neutral-50 border border-transparent' : 'bg-transparent border border-transparent opacity-40'}`}
                             layout
@@ -148,7 +180,9 @@ export default function LoadingOverlay({
                                 )}
                             </div>
                             <span className={`text-sm font-medium text-left ${isCurrent ? 'text-teal-700' : isPast ? 'text-neutral-600' : 'text-neutral-400'}`}>
-                                {step.label}
+                                {isCurrent && mode === "deep" && idx === steps.length - 1
+                                  ? activeStep  // Show the actual progress message for animation step
+                                  : step.label}
                             </span>
                         </motion.div>
                     );
