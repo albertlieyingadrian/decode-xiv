@@ -113,3 +113,5 @@ def get_completion(
         reasoning_content = str(reasoning_content)
 
     return content, usage_info, reasoning_content
+
+

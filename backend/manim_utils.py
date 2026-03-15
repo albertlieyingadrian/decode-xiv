@@ -145,6 +145,8 @@ def run_manim_capture_logs(
         except subprocess.TimeoutExpired as e:
             combined = f"<{scene_name}>\nstdout:\n{e.stdout or ''}\nstderr:\n{e.stderr or ''}\n(Timed out after {timeout_seconds}s)"
             return False, combined
+        except FileNotFoundError:
+            return False, f"<{scene_name}>\nError: 'manim' command not found. Install manim with: pip install manim"
 
         stdout = result.stdout or ""
         stderr = result.stderr or ""

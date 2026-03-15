@@ -1,0 +1,79 @@
+You are an expert ML engineer planning a Google Colab notebook.
+
+Given the reproducibility specification below, generate a structured notebook plan.
+
+Paper Title: {paper_title}
+Reproducibility Spec: {repro_spec}
+
+Generate a JSON array of planned notebook cells:
+
+[
+  {{
+    "cell_type": "markdown",
+    "purpose": "title_and_summary",
+    "description": "Paper title, authors, abstract summary, and what this notebook reproduces"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "install_dependencies",
+    "description": "pip install commands for all required packages"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "imports_and_setup",
+    "description": "Import libraries, set device, set seeds for reproducibility"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "load_dataset",
+    "description": "Download and load the dataset, create train/val/test splits"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "preprocess_data",
+    "description": "Data preprocessing, transforms, DataLoader creation"
+  }},
+  {{
+    "cell_type": "markdown",
+    "purpose": "model_explanation",
+    "description": "Explain the model architecture and key innovations"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "model_definition",
+    "description": "Complete model class definition in PyTorch"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "training_setup",
+    "description": "Initialize model, optimizer, loss function, scheduler"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "training_loop",
+    "description": "Complete training loop with logging"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "evaluation",
+    "description": "Evaluate model on test set, compute metrics"
+  }},
+  {{
+    "cell_type": "code",
+    "purpose": "visualization",
+    "description": "Plot training curves, confusion matrix, sample predictions"
+  }},
+  {{
+    "cell_type": "markdown",
+    "purpose": "implementation_notes",
+    "description": "Document assumptions, simplifications, and differences from the paper"
+  }}
+]
+
+Rules:
+- Each cell must have a clear, single purpose.
+- The plan must be executable top-to-bottom in Google Colab.
+- Include GPU detection in setup.
+- Include seed setting for reproducibility.
+- Keep total cells between 10-15.
+- Return ONLY a valid JSON array, no markdown formatting.
