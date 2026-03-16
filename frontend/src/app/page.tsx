@@ -33,7 +33,8 @@ export default function Home() {
 
   /** Shared NDJSON streaming logic */
   const streamResponse = async (endpoint: string) => {
-    const response = await fetch(`http://localhost:8000${endpoint}`, {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const response = await fetch(`${baseUrl}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
@@ -253,7 +254,7 @@ export default function Home() {
                         <video
                           controls
                           className="w-full h-full object-cover"
-                          src={result.manim_video_url.startsWith("http") ? result.manim_video_url : `http://localhost:8000${result.manim_video_url}`}
+                          src={result.manim_video_url.startsWith("http") ? result.manim_video_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${result.manim_video_url}`}
                         >
                           Your browser does not support the video tag.
                         </video>
@@ -296,9 +297,10 @@ export default function Home() {
                         <div className="flex items-center gap-3">
                           <button
                             onClick={async () => {
+                              const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
                               const nbUrl = result.reproduce_notebook_url.startsWith("http")
                                 ? result.reproduce_notebook_url
-                                : `http://localhost:8000${result.reproduce_notebook_url}`;
+                                : `${baseUrl}${result.reproduce_notebook_url}`;
                               const res = await fetch(nbUrl);
                               const blob = await res.blob();
                               const blobUrl = URL.createObjectURL(blob);
@@ -323,9 +325,10 @@ export default function Home() {
                               }
                               setReproduceColabUploading(true);
                               try {
+                                const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
                                 const nbUrl = result.reproduce_notebook_url.startsWith("http")
                                   ? result.reproduce_notebook_url
-                                  : `http://localhost:8000${result.reproduce_notebook_url}`;
+                                  : `${baseUrl}${result.reproduce_notebook_url}`;
                                 await uploadNotebookAndOpenColab(
                                   nbUrl,
                                   `experiment_${result?.title?.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").slice(0, 50) || "paper"}.ipynb`,
