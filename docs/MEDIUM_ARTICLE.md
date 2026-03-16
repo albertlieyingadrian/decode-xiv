@@ -4,13 +4,17 @@
 
 ---
 
+**Medium paste guide (delete this block after pasting):** Set line 1 as Title (big T). Set line 2 as Subtitle (small T). Paste the rest. At each image placeholder, delete the line and drag in the matching image from docs/ — use the placeholder text as the caption. For a divider, use Ctrl+Enter (Add a Part) instead of ---. Optional: turn the disclaimer into a Quote (select it, then Ctrl+Alt+5).
+
+---
+
 Every day, thousands of AI papers appear on arXiv. And every day, researchers and students face the same ritual: open a PDF, wade through walls of equations, squint at static diagrams, and hope the ideas "click."
 
 I wanted something better. What if you could paste a single URL and get back an animated video explaining the core concept, an interactive 3D model you can rotate and explore, and a runnable notebook that reproduces the paper's experiment?
 
 That's **Visual arXiv**.
 
-![Visual arXiv — Home screen with mode toggle and arXiv URL input](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-01.png)
+![Visual arXiv — Home screen with mode toggle and arXiv URL input](visual-arxiv-01.png)
 
 ## The Problem Nobody Talks About
 
@@ -20,13 +24,13 @@ The gap was clear: the tooling to go from "paper" to "visual understanding" didn
 
 I wanted to collapse that into one click.
 
-![User enters an arXiv URL and chooses a visualization mode](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-02.png)
+![User enters an arXiv URL and chooses a visualization mode](visual-arxiv-02.png)
 
 ## The Architecture: Gemini as the Brain, Google Cloud as the Backbone
 
 Here's a high-level view of how Visual arXiv is put together:
 
-![Visual arXiv system architecture](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-architecture.png)
+![Visual arXiv system architecture](visual-arxiv-architecture.png)
 
 The backend is a FastAPI service that orchestrates everything: fetching metadata from arXiv, running Gemini for code generation and concept extraction, executing Manim renders in subprocesses, and assembling reproduction notebooks. The frontend is a Next.js app that streams progress from the backend and renders the results.
 
@@ -44,7 +48,7 @@ At the heart of Visual arXiv is **Gemini 2.5 Flash** via the Gemini API. It powe
 
 **5. Section-by-Section Deep Dive** — For users who want more depth, the "Deep Dive" mode downloads the full PDF, extracts text page-by-page with PyMuPDF, uses Gemini to identify logical sections, and generates a separate Manim animation for each section. The result is a side-by-side viewer: PDF on the left, per-section animations on the right.
 
-![Streaming progress — live updates as the pipeline fetches, generates, and renders](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-03.png)
+![Streaming progress — live updates as the pipeline fetches, generates, and renders](visual-arxiv-03.png)
 
 ### Google ADK (Agent Development Kit) — Structured Concept Extraction
 
@@ -82,35 +86,35 @@ Once you paste a URL and hit Visualize, the streaming overlay shows real-time pr
 
 The title, authors, and abstract displayed cleanly so you can orient yourself.
 
-![Paper summary — title, authors, and abstract](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-04.png)
+![Paper summary — title, authors, and abstract](visual-arxiv-04.png)
 
 ### 2D Concept Animation (Manim)
 
 A generated video that walks through the paper's main idea with mathematical objects, labels, and transitions — all produced by Gemini and rendered by Manim.
 
-![Manim-generated 2D animation illustrating the paper's main idea](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-05.png)
+![Manim-generated 2D animation illustrating the paper's main idea](visual-arxiv-05.png)
 
 ### 3D Architecture Overview
 
 An interactive Three.js scene where you can rotate, zoom, and explore the model's architecture as a node-and-edge graph.
 
-![Interactive 3D scene showing the model architecture](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-06.png)
+![Interactive 3D scene showing the model architecture](visual-arxiv-06.png)
 
 ### Reproduce Experiment
 
 A generated Colab notebook that tries to reproduce the paper's core experiment. You can download it or open it directly in Colab.
 
-![Reproduce Experiment card with download and Open in Colab](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-07.png)
+![Reproduce Experiment card with download and Open in Colab](visual-arxiv-07.png)
 
 ## Deep Dive Mode: Section-by-Section
 
 For longer papers, the Deep Dive mode gives you a side-by-side experience: the original PDF on the left, and a list of detected sections on the right, each with its own generated animation.
 
-![Deep Dive — side-by-side PDF and section list](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-08.png)
+![Deep Dive — side-by-side PDF and section list](visual-arxiv-08.png)
 
 Click any section to see its dedicated animation playing alongside the corresponding PDF pages.
 
-![Section-by-section viewer with a selected section's Manim animation](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-09.png)
+![Section-by-section viewer with a selected section's Manim animation](visual-arxiv-09.png)
 
 ## The Hardest Problem: Making Manim Actually Work
 
@@ -147,7 +151,7 @@ This was a small detail that made a huge difference in how the app feels.
 
 **Other:** Manim Community (animation), PyMuPDF (PDF extraction), Three.js / React Three Fiber / Drei (3D), Framer Motion, Tailwind CSS, react-pdf, arXiv API, Docker, Papers With Code API, Hugging Face
 
-![Final result — Open in Colab flow](https://raw.githubusercontent.com/albertlieyingadrian/visual-arxiv/main/docs/visual-arxiv-10.png)
+![Final result — Open in Colab flow](visual-arxiv-10.png)
 
 ## What's Next
 
