@@ -110,19 +110,19 @@ Judges can optionally:
 
   ```bash
   # backend
-  docker build -t visual-arxiv-backend ./backend
-  docker run -p 8000:8000 -e GEMINI_API_KEY=YOUR_GEMINI_API_KEY visual-arxiv-backend
+  docker build -t decode-arxiv-backend ./backend
+  docker run -p 8000:8000 -e GEMINI_API_KEY=YOUR_GEMINI_API_KEY decode-arxiv-backend
 
   # frontend
-  docker build -t visual-arxiv-frontend ./frontend
-  docker run -p 3000:3000 -e NEXT_PUBLIC_BACKEND_URL=http://host.docker.internal:8000 visual-arxiv-frontend
+  docker build -t decode-arxiv-frontend ./frontend
+  docker run -p 3000:3000 -e NEXT_PUBLIC_BACKEND_URL=http://host.docker.internal:8000 decode-arxiv-frontend
   ```
 
 - Or use `deploy_gcp.sh` and `cloudbuild.yaml` to deploy backend and frontend to Cloud Run (see inline comments in those files for the exact commands and required GCP project settings).
 
 In all cases, the test flow is the same: open the frontend, paste an arXiv URL, and confirm that the animations, 3D view, and reproduction notebook are generated successfully.
 
-# visual-arxiv
+# decode-arxiv
 
 Setup and run the ArXiv Animator backend and Next.js frontend.
 
