@@ -1,6 +1,6 @@
-## Visual ArXiv
+## DecodeXiv
 
-**Visual ArXiv** turns any arXiv URL into a living experience: 2D animations that walk through the math, 3D views you can rotate and explore, and one-click runnable Colab notebooks generated from the paper.
+**DecodeXiv** turns any arXiv URL into a living experience: 2D animations that walk through the math, 3D views you can rotate and explore, and one-click runnable Colab notebooks generated from the paper.
 
 For full project background see `PROJECT.md`. For UI screenshots and captions see `docs/README.md`.
 
