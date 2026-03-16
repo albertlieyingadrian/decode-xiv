@@ -50,6 +50,10 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openrouter/google/gemini-2.0-flash-001")
 USE_OPENROUTER = bool(OPENROUTER_API_KEY.strip())
 
+# Base URL for generated resources (videos, PDFs, notebooks)
+# In production (Cloud Run), this should be the public URL of the backend service
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
+
 # Forcefully remove google application credentials from environment if they exist
 # to force the usage of the raw API key instead of gcloud oauth.
 if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
@@ -731,6 +735,8 @@ def render_manim_video(manim_code: str, paper_id: str) -> str:
 
 from fastapi.responses import StreamingResponse
 
+from adk_agents import extract_concepts_with_adk
+
 @app.post("/api/process-paper")
 async def process_paper(request: PaperRequest):
     import asyncio
@@ -749,7 +755,15 @@ async def process_paper(request: PaperRequest):
             yield json.dumps({"status": "error", "message": "Paper not found on arXiv"}) + "\n"
             return
 
-        yield json.dumps({"status": "step", "message": "Summarizing & parsing core concepts with AI..."}) + "\n"
+        yield json.dumps({"status": "step", "message": "Summarizing & parsing core concepts with AI (using Google ADK)..."}) + "\n"
+        
+        # Enhanced concept extraction using ADK
+        adk_concepts = await extract_concepts_with_adk(paper.title, paper.summary)
+        enhanced_summary = paper.summary
+        if adk_concepts:
+            enhanced_summary += f"\n\n### Key Visual Concepts (Extracted by ADK Agent):\n{adk_concepts}"
+            yield json.dumps({"status": "step", "message": "Concepts extracted. Starting workflow..."}) + "\n"
+        
         await asyncio.sleep(0.2)
 
         progress_queue: Queue[str] = Queue()
@@ -759,7 +773,7 @@ async def process_paper(request: PaperRequest):
 
         def workflow_with_progress() -> tuple[str, str, WorkflowStats, dict, str]:
             return run_manim_workflow(
-                paper.summary,
+                enhanced_summary,
                 paper.title,
                 arxiv_id,
                 max_review_cycles=MANIM_REVIEW_CYCLES,
@@ -775,7 +789,7 @@ async def process_paper(request: PaperRequest):
         def reproduce_with_progress() -> tuple[str, dict]:
             return run_reproduce_pipeline(
                 paper.title,
-                paper.summary,
+                enhanced_summary,
                 arxiv_id,
                 progress_callback=lambda msg: progress_queue.put(f"[Reproduce] {msg}"),
                 console=reproduce_console,
@@ -837,7 +851,7 @@ async def process_paper(request: PaperRequest):
                 notebook_filename = f"animation_{safe_id}.ipynb"
                 notebook_path = os.path.join(video_dir, notebook_filename)
                 save_notebook(notebook, notebook_path)
-                notebook_url = f"http://localhost:8000/static/videos/{notebook_filename}"
+                notebook_url = f"{BASE_URL}/static/videos/{notebook_filename}"
             except Exception as e:
                 print(f"Failed to generate Colab notebook: {e}")
 
@@ -849,10 +863,10 @@ async def process_paper(request: PaperRequest):
                 "title": paper.title,
                 "authors": [auth.name for auth in paper.authors],
                 "summary": paper.summary,
-                "manim_video_url": f"http://localhost:8000{video_url_path}" if video_url_path else "",
+                "manim_video_url": f"{BASE_URL}{video_url_path}" if video_url_path else "",
                 "three_js_config": threejs_config,
-                "notebook_url": notebook_url,
-                "reproduce_notebook_url": reproduce_notebook_url,
+                "notebook_url": f"{BASE_URL}/static/videos/{notebook_filename}" if notebook_url else "",
+                "reproduce_notebook_url": f"{BASE_URL}{reproduce_notebook_path}" if reproduce_notebook_path else "",
             },
         }) + "\n"
 
@@ -924,7 +938,7 @@ async def reproduce_paper(request: PaperRequest):
                 "title": paper.title,
                 "authors": [auth.name for auth in paper.authors],
                 "summary": paper.summary,
-                "reproduce_notebook_url": f"http://localhost:8000{notebook_url_path}" if notebook_url_path else "",
+                "reproduce_notebook_url": f"{BASE_URL}{notebook_url_path}" if notebook_url_path else "",
             },
         }) + "\n"
 
@@ -964,7 +978,7 @@ async def process_paper_sections(request: PaperRequest):
             yield json.dumps({"status": "error", "message": f"Failed to download PDF: {e}"}) + "\n"
             return
 
-        pdf_url = f"http://localhost:8000/static/pdfs/{os.path.basename(pdf_path)}"
+        pdf_url = f"{BASE_URL}/static/pdfs/{os.path.basename(pdf_path)}"
 
         yield json.dumps({"status": "step", "message": "Extracting text from PDF..."}) + "\n"
         pages_text = await loop.run_in_executor(None, extract_text_by_page, pdf_path)
@@ -1031,7 +1045,7 @@ async def process_paper_sections(request: PaperRequest):
 
                 if success:
                     progress_queue.put(f"Rendered: {section_title}")
-                    return {**section, "video_url": f"http://localhost:8000/static/videos/{output_filename}"}
+                    return {**section, "video_url": f"{BASE_URL}/static/videos/{output_filename}"}
 
                 # One retry with error feedback
                 progress_queue.put(f"Retrying: {section_title}")
@@ -1055,7 +1069,7 @@ async def process_paper_sections(request: PaperRequest):
                     )
                     if success:
                         progress_queue.put(f"Rendered (retry): {section_title}")
-                        return {**section, "video_url": f"http://localhost:8000/static/videos/{output_filename}"}
+                        return {**section, "video_url": f"{BASE_URL}/static/videos/{output_filename}"}
 
                 progress_queue.put(f"Failed: {section_title}")
                 return {**section, "video_url": ""}
