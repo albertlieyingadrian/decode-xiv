@@ -64,7 +64,7 @@ app = FastAPI(title="ArXiv Animator API")
 # Setup CORS for the Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000"] + ([os.environ["FRONTEND_URL"]] if os.environ.get("FRONTEND_URL") else ["*"]),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

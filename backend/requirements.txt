@@ -3,7 +3,10 @@ fastapi
 uvicorn[standard]
 arxiv
 google-generativeai
+google-genai
+google-adk
 python-dotenv
 litellm
 rich>=13.0.0
 pymupdf
+requests

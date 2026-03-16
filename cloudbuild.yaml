@@ -1,65 +1,88 @@
 steps:
-  # 1. Build and Push Backend
+  # 1. Build Backend
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:$COMMIT_SHA', './backend']
+    args: ['build', '-t', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:$_TAG', './backend']
     id: 'Build Backend'
 
+  # 2. Push Backend
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:$COMMIT_SHA']
+    args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:$_TAG']
     id: 'Push Backend'
 
-  # 2. Deploy Backend to Cloud Run
+  # 3. Deploy Backend to Cloud Run (with extra memory/CPU for Manim rendering)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'visual-arxiv-backend'
+      - 'decode-arxiv-backend'
       - '--image'
-      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:$COMMIT_SHA'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:$_TAG'
       - '--region'
       - '$_REGION'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '600'
       - '--set-env-vars'
       - 'GEMINI_API_KEY=$_GEMINI_API_KEY,OPENROUTER_API_KEY=$_OPENROUTER_API_KEY'
+      - '--cpu-boost'
+      - '--max-instances'
+      - '3'
     id: 'Deploy Backend'
 
-  # 3. Get Backend URL
+  # 4. Get Backend URL
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: bash
     args:
       - '-c'
       - |
-        gcloud run services describe visual-arxiv-backend --platform managed --region $_REGION --format 'value(status.url)' > /workspace/backend_url.txt
-        echo "Backend URL: $(cat /workspace/backend_url.txt)"
+        gcloud run services describe decode-arxiv-backend --platform managed --region $_REGION --format 'value(status.url)' > /workspace/backend_url.txt
+        echo "Backend URL: $$(cat /workspace/backend_url.txt)"
     id: 'Get Backend URL'
 
-  # 4. Build Frontend with Backend URL
+  # 5. Update Backend with its own URL as BASE_URL
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        BACKEND_URL=$$(cat /workspace/backend_url.txt)
+        gcloud run services update decode-arxiv-backend \
+          --region $_REGION \
+          --platform managed \
+          --update-env-vars "BASE_URL=$$BACKEND_URL"
+    id: 'Update Backend ENV'
+
+  # 6. Build Frontend with Backend URL
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: bash
     args:
       - '-c'
       - |
-        BACKEND_URL=$(cat /workspace/backend_url.txt)
-        docker build --build-arg NEXT_PUBLIC_API_URL=$BACKEND_URL -t $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:$COMMIT_SHA ./frontend
+        BACKEND_URL=$$(cat /workspace/backend_url.txt)
+        docker build --build-arg NEXT_PUBLIC_API_URL=$$BACKEND_URL -t $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:$_TAG ./frontend
     id: 'Build Frontend'
 
-  # 5. Push Frontend
+  # 7. Push Frontend
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:$COMMIT_SHA']
+    args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:$_TAG']
     id: 'Push Frontend'
 
-  # 6. Deploy Frontend
+  # 8. Deploy Frontend to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'visual-arxiv-frontend'
+      - 'decode-arxiv-frontend'
       - '--image'
-      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:$COMMIT_SHA'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:$_TAG'
       - '--region'
       - '$_REGION'
       - '--platform'
@@ -67,11 +90,28 @@ steps:
       - '--allow-unauthenticated'
     id: 'Deploy Frontend'
 
+  # 9. Update Backend CORS with Frontend URL
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        FRONTEND_URL=$$(gcloud run services describe decode-arxiv-frontend --platform managed --region $_REGION --format 'value(status.url)')
+        gcloud run services update decode-arxiv-backend \
+          --region $_REGION \
+          --platform managed \
+          --update-env-vars "FRONTEND_URL=$$FRONTEND_URL"
+        echo "Frontend URL: $$FRONTEND_URL"
+    id: 'Update Backend CORS'
+
 substitutions:
   _REGION: us-central1
   _REPO_NAME: visual-arxiv-repo
   _GEMINI_API_KEY: ""
   _OPENROUTER_API_KEY: ""
+  _TAG: "latest"
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+timeout: '1800s'
